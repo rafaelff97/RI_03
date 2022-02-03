@@ -28,6 +28,10 @@ class Query:
         self.pathQueryResults = "queryResults/queryResults.txt"
         self.pathQueriesRelevante = 'queries.relevance.txt'
         
+    def noBoost(self,dicDocuments):
+        for doc in dicDocuments:
+            dicDocuments[doc] = 0
+        return dicDocuments
     def calculatePrecision(self,retrieved_docs, relevantList):
         interception = list(set(retrieved_docs) & set(relevantList))
         precision = len(interception) / len(retrieved_docs)
@@ -60,7 +64,7 @@ class Query:
         averagePrecision = averagePrecision / relevantCount
         return averagePrecision
     
-    def calculateQueryThroughput(time):
+    def calculateQueryThroughput(self,time):
         return 1/time
 
     def getRelevance(self,query):
@@ -362,30 +366,25 @@ class Query:
         arrayResults = []
         for file in indexIncomplete:
             for term in arrayTerms:
-                if self.checkRange(self, term, file):
+                if self.checkRange(term, file):
                     arrayResults += self.openAndSearchFile(term, file)
     
         return set(arrayResults)
     
-    def documentIndexToDocumentId(self, indexedDocuments):
+    def documentIndexToDocumentId(self, indexedDocuments,limit):
         """ Returns a dictionary where the temporary id of the document is the original """
         resultDict = {}
-        for term in indexedDocuments:
-            top100 = 0
-            for document in indexedDocuments[term]:
-                with open(self.pathDocumentIndex) as f:
-                    data = f.readlines()[int(document)]
-                f.close()
-                if term in resultDict.keys():
-                    resultDict[term].update(
-                        {data.split(",")[1]: indexedDocuments[term][document]})
-                else:
-                    resultDict[term] = {data.split(
-                        ",")[1]: indexedDocuments[term][document]}
-                top100 += 1
-                if top100 == 100:
-                    break
-    
+        topx = 0
+        for document in indexedDocuments:
+            with open(self.pathDocumentIndex) as f:
+                 data = f.readlines()[int(document)]
+            f.close()
+            documentId = data.split(",")[1]
+            resultDict[documentId]= indexedDocuments[document]
+            topx += 1
+            if topx == limit:
+               break
+            
         return resultDict
         
     def readTxtFile(self, path):
@@ -548,15 +547,13 @@ class Query:
         for document in documentsNWeight:
             for term in documentsNWeight[document]:
                 if term in queryNWeight.keys():
-                    score = float(
-                        documentsNWeight[document][term]) * queryNWeight[term]
+                    score = float(documentsNWeight[document][term]) * queryNWeight[term]
                     score += boostTable[document]
-                    if term in dictResults.keys():
-                        dictResults[term].update({document: score})
+                    if document in dictResults.keys():
+                        dictResults[document] += score
                     else:
-                        dictResults[term] = {document: score}
-        dictResults = {key: dict(sorted(val.items(), key=lambda ele: ele[1], reverse=True))
-                       for key, val in dictResults.items()}
+                        dictResults[document] = score
+        dictResults = dict(sorted(dictResults.items(), key = lambda x: x[1], reverse = True))
         return dictResults
         
     def countDocumentsForTerm(self,term, file):
@@ -617,36 +614,25 @@ class Query:
         for documentIndex in documents:
             bm25Document = 0
             lenDocument = content[int(documentIndex)].split(",")[2]
-    
+             
             for term in query:
-                if term in documentTermDictionary[documentIndex].keys():
-    
+                if term in documentTermDictionary[documentIndex].keys():         
                     mediaDocument = float(lenDocument)/mediaLenDocuments
                     tfTerm = dictTFI[term]
-                    bm25Document += idfTermDictionary[term] * (((k1 + 1) * tfTerm)) / (
-                        k1 * ((1 - b) + b * mediaDocument) + tfTerm)
-    
-                    if term in dictDocumentBM25.keys():
-                        dictDocumentBM25[term].update(
-                            {documentIndex: bm25Document})
-                    else:
-                        dictDocumentBM25[term] = {documentIndex: bm25Document}
-    
-        for term in dictDocumentBM25:
-            for document in dictDocumentBM25[term]:
-                dictDocumentBM25[term][document] += boostTable[document]
+                    bm25Document += idfTermDictionary[term] * (((k1 + 1) * tfTerm)) / (k1 * ((1 - b) + b * mediaDocument) + tfTerm)
         
-        dictDocumentBM25 = {key: dict(sorted(val.items(), key=lambda ele: ele[1], reverse=True))
-                            for key, val in dictDocumentBM25.items()}
+            dictDocumentBM25[documentIndex] = bm25Document + boostTable[documentIndex]
+                         
+        dictDocumentBM25 = dict(sorted(dictDocumentBM25.items(), key = lambda x: x[1], reverse = True))
         f.close()
-        return dictDocumentBM25     
+        return dictDocumentBM25
         
     def printResultQuery(self, documentIndex):
         """ Prints the query results in a more organised manner """
        # with open(self.pathIdfIndexDictionary, "rb") as fp: 
        #     idfTermDictionary = pickle.load(fp)
             
-        with open(self.pathQueryResult, 'w') as f:
+        with open(self.pathQueryResults, 'w') as f:
     
             termInfo = ""
             for document in documentIndex:
@@ -660,7 +646,7 @@ class Query:
     def query(self):
         """ Method in charge of doing all the calculations and showing the query results """
         
-        query = str(input("What is your query:\n"))
+        queryOriginal = str(input("What is your query:\n"))
         
         requiredBoost = str(input("Do you wish to apply boostings?:\n" +
                                "1 -> Yes\n" + 
@@ -672,12 +658,12 @@ class Query:
         
         topx = int(input("The number of documents you wish to see as a result (top 10, top15, topx):\n"))
         start_time = time.time()
-        relevantDocuments = self.getRelevantList(query)
+        relevantDocuments = self.getRelevantList(queryOriginal)
 
-        queryTokenize = self.tokenizer(query)
-        counts = Counter(queryTokenize)
+        query  = self.tokenizer(queryOriginal)
+        counts = Counter(query)
         dictionaryTermWeight, queryLength = self.termWeight(counts)  
-        indexedDocuments = self.searchDocumentsForTerm(queryTokenize)
+        indexedDocuments = self.searchDocumentsForTerm(query)
         
         boostTable = self.loadDocTermPosition(indexedDocuments)
         
@@ -693,19 +679,17 @@ class Query:
             dictDocumentsNormalized = self.loadTermDocumentNormalized(indexedDocuments)
             finalDict = self.score(dictDocumentsNormalized,
                               dictionaryTermNormalizedWeight, boostTable)
-            flag = "lncltc"
         elif method == "2":
             k1 = float(input("What is the value of k1:\n"))
             b = float(input("What is the value of b:\n"))
             if k1<=0 or b<=0:
                 k1=1.2
                 b=0.75
-            finalDict = self.bm25(k1, b, queryTokenize, indexedDocuments, boostTable)
-            flag="bm25"
+            finalDict = self.bm25(k1, b, query, indexedDocuments, boostTable)
 
         documentScoreDict = self.documentIndexToDocumentId(finalDict, topx)
         timeForquery = time.time() - start_time
-        self.printResultQuery(documentScoreDict, str(query+"_"+flag))
+        self.printResultQuery(documentScoreDict)
         
         if len(relevantDocuments) != 0:     
             prec = self.calculatePrecision(documentScoreDict, relevantDocuments)
@@ -714,7 +698,7 @@ class Query:
             averagePrec = self.calculateAveragePrecision(documentScoreDict, relevantDocuments)
             queryThroughput = self.calculateQueryThroughput(timeForquery)
             queryLatency = timeForquery
-            NDCG = self.calculateNCDG(query, documentScoreDict, topx)
+            NDCG = self.calculateNCDG(queryOriginal, documentScoreDict, topx)
             
             print("-------")
             print("Prec: ",prec)

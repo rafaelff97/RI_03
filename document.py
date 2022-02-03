@@ -24,7 +24,7 @@ class Document:
         self.pathIndexCompleteWeight = "indexCompleteWeight"
         self.pathIndexIncomplete =  "indexIncomplete"
         self.pathImportantValues = "importantValues/values.txt"
-        self.pathDocumentLength = "documentLength/do cumentLength.txt"
+        self.pathDocumentLength = "documentLength/documentLength.txt"
         self.pathIndexCompleteNormalized = "indexCompleteNormalized"
         self.pathDictionary = "IDFIndex/dictionary.txt"
     

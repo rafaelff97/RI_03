@@ -1,0 +1,26 @@
+query: greatest rock album
+
+com boost:
+	lnt-ltc:
+Prec:  0.2
+Recall:  0.03389830508474576
+fMeasure:  0.05797101449275363
+Average Prec: 0.29166666666666663
+Query Throughput: 0.00035331723899522245
+Query Latency: 2830.317600250244
+NDCG: 0.2364636431226323
+Time it takes to do the search: 2895.5042855739594s
+Memory estimate used:3739461844bytes
+
+sem boost:
+	lnt-ltc:
+
+Prec:  0.7
+Recall:  0.11864406779661017
+fMeasure:  0.20289855072463767
+Average Prec: 0.8444444444444443
+Query Throughput: 0.0006417718414132704
+Query Latency: 1558.1861581802368
+NDCG: 0.5612157412665956
+Time it takes to do the search: 1619.1764540672302s
+Memory estimate used:2270694524bytes
